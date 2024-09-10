@@ -1,0 +1,4 @@
+scrape_configs:
+  - job_name: 'dify-app'
+    static_configs:
+      - targets: ['dify-app:8000']

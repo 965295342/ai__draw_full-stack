@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+  app:
+    # 使用 image 指令指定已存在的镜像名称
+    image: dify-app:v3
+    container_name: dify-app
+    ports:
+      - "8553:8553"
+      - "8000:8000"
+    volumes:
+      - ./python:/app  # 映射当前目录到容器的 /app 目录
+      - /.config:/.config
+    networks:
+      - app-network
+    command: bash -c "pip install pyyaml -i https://pypi.tuna.tsinghua.edu.cn/simple && python /app/main.py"
+
+  frontend:  # 前端应用
+    build:
+      context: ./webui/draw-nextui  # 假设前端代码在 ./frontend 目录下
+    image: nextui:v2
+    container_name: nextui
+    ports:
+      - "5173:5173"  # 假设前端应用运行在端口 
+    volumes:
+      - ./webui/draw-nextui:/app  # 将前端代码映射到容器中
+      - /app/node_modules  # 防止覆盖 node_modules 目录
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=development  # 设置开发环境变量
+    command: npm run dev -- --host 0.0.0.0  # 关键部分：使用 --host 0.0.0.0
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - frontend  # 确保 Nginx 在 Vite 服务启动后再启动
+    networks:
+      - app-network
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf  # 挂载本地 redis.conf
+      - ./redis-data:/data
+     
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]  # 使用自定义配置文件
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+networks:
+  app-network:
+    driver: bridge
